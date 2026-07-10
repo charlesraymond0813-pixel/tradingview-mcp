@@ -293,21 +293,33 @@ export async function switchTab({ index }) {
   }
 
   const target = tabs.tabs[idx];
+  let visuallySwitched = await isTargetVisible(target.id);
 
-  if (!(await isTargetVisible(target.id))) {
-    const clicked = await withShell(async (evalIn) => {
-      const count = await evalIn(`document.querySelectorAll('.tabs-container .tab').length`);
-      // Try the same ordinal first (shell order usually matches), then the rest.
-      const order = [...new Set([Math.min(idx, count - 1), ...Array.from({ length: count }, (_, k) => k)])];
-      for (const k of order) {
-        await evalIn(`document.querySelectorAll('.tabs-container .tab')[${k}].click()`);
-        await new Promise(r => setTimeout(r, 400));
-        if (await isTargetVisible(target.id)) return k;
+  if (!visuallySwitched) {
+    try {
+      const clicked = await withShell(async (evalIn) => {
+        const count = await evalIn(`document.querySelectorAll('.tabs-container .tab').length`);
+        // Try the same ordinal first (shell order usually matches), then the rest.
+        const order = [...new Set([Math.min(idx, count - 1), ...Array.from({ length: count }, (_, k) => k)])];
+        for (const k of order) {
+          await evalIn(`document.querySelectorAll('.tabs-container .tab')[${k}].click()`);
+          await new Promise(r => setTimeout(r, 400));
+          if (await isTargetVisible(target.id)) return k;
+        }
+        return null;
+      });
+      if (clicked === null) {
+        throw new Error(`Clicked through all shell tabs but chart ${target.chart_id} never became visible.`);
       }
-      return null;
-    });
-    if (clicked === null) {
-      throw new Error(`Clicked through all shell tabs but chart ${target.chart_id} never became visible.`);
+      visuallySwitched = true;
+    } catch (e) {
+      // No Electron shell tab bar exists in a plain-Chrome setup, and Windows
+      // window-occlusion tracking can also report a background browser window's
+      // active tab as "hidden" even though it's the one selected within it.
+      // Either way there's nothing to click through — trust that the caller
+      // already selected the tab manually and just re-attach directly.
+      if (!/shell window \(tab bar\) not found/i.test(e.message)) throw e;
+      visuallySwitched = false;
     }
   }
 
@@ -315,8 +327,8 @@ export async function switchTab({ index }) {
   try {
     await reconnectTo(target.id);
   } catch (e) {
-    throw new Error(`Tab is visible but failed to re-attach CDP to it: ${e.message}`);
+    throw new Error(`Failed to re-attach CDP to tab ${idx}: ${e.message}`);
   }
 
-  return { success: true, action: 'switched', index: idx, tab_id: target.id, chart_id: target.chart_id, visually_switched: true };
+  return { success: true, action: 'switched', index: idx, tab_id: target.id, chart_id: target.chart_id, visually_switched: visuallySwitched };
 }

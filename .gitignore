@@ -6,3 +6,12 @@ temp_*
 discovery-log.json
 rules.json
 CLAUDE.local.md
+
+# Quarantined pilot/no-peek results -- must never be committed while sealed
+quarantine/
+*_SEALED.json
+
+# Proprietary strategy/research -- this repo's origin is public (tradesdontlie/tradingview-mcp)
+research/
+backtest/
+velox/

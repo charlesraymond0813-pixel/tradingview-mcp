@@ -28,3 +28,4 @@ scripts/heartbeat_watchdog_check.ps1
 scripts/launch_chrome_tv.bat
 scripts/trading_window_watchdog.ps1
 scripts/replay_20260722.py
+scripts/session_start_reminder.ps1
